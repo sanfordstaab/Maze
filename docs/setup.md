@@ -31,5 +31,5 @@ The client will start on port 3000 and automatically open in your default browse
 - Build for production: `npm run build`
 
 ## Environment Variables
-- `PORT`: Server port (default: 3001)
+- `SERVER_PORT`: Server port (default: 3001)
 - `CLIENT_URL`: Client URL for CORS (default: http://localhost:3000)

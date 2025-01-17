@@ -1,9 +1,12 @@
 cd server
 npm install
 npm run build
-npm start
+npm run dev
+npm test
+
 cd client
 npm install
-npm startpw
+npm start
 start index.html
+
 cd ..
