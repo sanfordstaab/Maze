@@ -83,17 +83,34 @@ export interface DifficultySettings {
   mapDropChance: number;
 }
 
+export interface DifficultySettings {
+  monsterCount: number;
+  monsterMoveInterval: number;
+  monsterVisibility: number;
+  monsterDamage: number;
+  monsterPursuitEnabled: boolean;
+  playerVisibility: number;
+  healingPotionCount: number;
+  healingPotionStrength: number;
+  playerVsPlayerEnabled: boolean;
+  secretDoorChance: number;
+  allowTrolls: boolean;
+  allowDragons: boolean;
+  mapDropChance: number;
+}
+
 export interface Game {
   id: string;
   players: Player[];
   monsters: Monster[];
   status: 'waiting' | 'ongoing' | 'finished';
-  maze: Maze | null;
+  maze: Maze;  // Changed from Maze | null since it's always initialized
   createdAt: Date;
   difficulty: number;
   winner?: {
     playerId: string;
     playerName: string;
+    exitedWithKey?: boolean;
   };
   exitPosition: Position;
   difficultySettings: DifficultySettings;

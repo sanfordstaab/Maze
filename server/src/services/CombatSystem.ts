@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 
 export class CombatSystem {
   resolveCombat(game: Game, position: Position): CombatResult[] {
+    console.assert(game && game.players, 'game must exist and have players array');
+    console.assert(position && typeof position.x === 'number', 'position must be valid');
+    console.assert(position.level >= 0, 'position must have valid level');
+
     const results: CombatResult[] = [];
     
     // Get all entities at this position
@@ -63,6 +67,10 @@ export class CombatSystem {
   }
 
   private resolvePlayerCombat(game: Game, player1: Player, player2: Player): CombatResult | null {
+    console.assert(player1 && player2, 'both players must exist');
+    console.assert(player1.id !== player2.id, 'cannot fight self');
+    console.assert(game.difficultySettings, 'game must have difficulty settings');
+
     // Only allow PvP at higher difficulties
     if (!game.difficultySettings.playerVsPlayerEnabled) {
       return null;
@@ -105,6 +113,9 @@ export class CombatSystem {
   }
 
   private stealItem(attacker: Player, defender: Player): Item | undefined {
+    console.assert(attacker && defender, 'both players must exist');
+    console.assert(Array.isArray(defender.inventory), 'defender must have inventory array');
+
     if (defender.inventory.length === 0) return undefined;
 
     // Randomly select an item to steal

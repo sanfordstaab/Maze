@@ -1,24 +1,3 @@
-  private getAdjacentCell(x: number, y: number, wall: 'north' | 'south' | 'east' | 'west'): [number, number] {
-    switch (wall) {
-      case 'north':
-        return [x, this.wrap(y - 1, this.height)];
-      case 'south':
-        return [x, this.wrap(y + 1, this.height)];
-      case 'east':
-        return [this.wrap(x + 1, this.width), y];
-      case 'west':
-        return [this.wrap(x - 1, this.width), y];
-    }
-  }
-
-  private getOppositeWall(wall: 'north' | 'south' | 'east' | 'west'): 'north' | 'south' | 'east' | 'west' {
-    switch (wall) {
-      case 'north': return 'south';
-      case 'south': return 'north';
-      case 'east': return 'west';
-      case 'west': return 'east';
-    }
-  }
 import { Maze, MazeCell, Position } from '../types';
 
 export class MazeGenerator {
@@ -29,6 +8,10 @@ export class MazeGenerator {
   private visited: boolean[][][];
 
   constructor(width: number, height: number, levels: number) {
+    console.assert(width > 0 && height > 0 && levels > 0, 'dimensions must be positive numbers');
+    console.assert(width <= 100 && height <= 100, 'maze dimensions cannot exceed 100x100');
+    console.assert(levels <= 10, 'cannot have more than 10 levels');
+
     this.width = width;
     this.height = height;
     this.levels = levels;
@@ -59,6 +42,10 @@ export class MazeGenerator {
   }
 
   generate(): Maze {
+    console.assert(this.grid.length === this.levels, 'grid not properly initialized');
+    console.assert(this.grid[0].length === this.height, 'grid height mismatch');
+    console.assert(this.grid[0][0].length === this.width, 'grid width mismatch');
+
     // Start from a random position on level 0
     const startX = Math.floor(Math.random() * this.width);
     const startY = Math.floor(Math.random() * this.height);
@@ -66,9 +53,6 @@ export class MazeGenerator {
 
     // Add stairs between levels
     this.addStairsBetweenLevels();
-
-    // Add secret doors (random walls that can be passed through)
-    this.addSecretDoors();
 
     return {
       width: this.width,
@@ -79,6 +63,10 @@ export class MazeGenerator {
   }
 
   private carve(pos: Position): void {
+    console.assert(pos.level >= 0 && pos.level < this.levels, 'invalid level');
+    console.assert(pos.x >= 0 && pos.x < this.width, 'invalid x position');
+    console.assert(pos.y >= 0 && pos.y < this.height, 'invalid y position');
+
     this.visited[pos.level][pos.y][pos.x] = true;
 
     // Get all possible directions in random order
@@ -124,37 +112,6 @@ export class MazeGenerator {
         this.grid[level + 1][y][x].hasStairs = {
           down: true
         };
-      }
-    }
-  }
-
-  private addSecretDoors(secretDoorChance: number): void {
-    // Add secret doors based on difficulty setting
-    const totalCells = this.width * this.height * this.levels;
-    const numSecretDoors = Math.floor(totalCells * secretDoorChance);
-
-    for (let i = 0; i < numSecretDoors; i++) {
-      const level = Math.floor(Math.random() * this.levels);
-      const y = Math.floor(Math.random() * this.height);
-      const x = Math.floor(Math.random() * this.width);
-
-      // Randomly choose a wall to make secret
-      const cell = this.grid[level][y][x];
-      const walls = ['north', 'south', 'east', 'west'] as const;
-      const wallIndex = Math.floor(Math.random() * walls.length);
-      const wall = walls[wallIndex];
-
-      // Only add secret door if there's actually a wall there
-      if (cell.walls[wall]) {
-        cell.secretDoors = cell.secretDoors || {};
-        cell.secretDoors[wall] = true;
-
-        // Add secret door to adjacent cell's opposite wall
-        const [nextX, nextY] = this.getAdjacentCell(x, y, wall);
-        const adjacentCell = this.grid[level][nextY][nextX];
-        const oppositeWall = this.getOppositeWall(wall);
-        adjacentCell.secretDoors = adjacentCell.secretDoors || {};
-        adjacentCell.secretDoors[oppositeWall] = true;
       }
     }
   }

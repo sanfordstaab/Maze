@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 
 export class ItemSystem {
   pickupItem(game: Game, playerId: string): Item | null {
+    console.assert(game && game.players, 'game must exist with players');
+    console.assert(playerId && typeof playerId === 'string', 'playerId must be a string');
+    console.assert(game.maze && game.maze.grid, 'game must have initialized maze');
+
     const player = game.players.find(p => p.id === playerId);
     if (!player) return null;
 
@@ -57,6 +61,10 @@ export class ItemSystem {
   }
 
   useItem(game: Game, playerId: string, itemId: string): { success: boolean; effect?: string } {
+    console.assert(game && game.difficultySettings, 'game must have difficulty settings');
+    console.assert(playerId && itemId, 'playerId and itemId must be provided');
+    console.assert(game.players.some(p => p.id === playerId), 'player must exist in game');
+
     const settings = game.difficultySettings;
     const player = game.players.find(p => p.id === playerId);
     if (!player) return { success: false };

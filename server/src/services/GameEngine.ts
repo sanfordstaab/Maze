@@ -1,115 +1,19 @@
-      case 'up':
-        const currentCell = game.maze.grid[level][y][x];
-        if (currentCell.hasStairs?.up) {
-          // Top level wraps to bottom
-          level = level === levels - 1 ? 0 : level + 1;
-          // Ensure corresponding stairs exist at destination
-          const destCell = game.maze.grid[level][y][x];
-          if (!destCell.hasStairs?.down) {
-            return { x, y, level: current.level }; // Revert if no matching stairs
-          }
-        }
-        break;
-      case 'down':
-        const downCell = game.maze.grid[level][y][x];
-        if (downCell.hasStairs?.down) {
-          // Bottom level wraps to top
-          level = level === 0 ? levels - 1 : level - 1;
-          // Ensure corresponding stairs exist at destination
-          const destCell = game.maze.grid[level][y][x];
-          if (!destCell.hasStairs?.up) {
-            return { x, y, level: current.level }; // Revert if no matching stairs
-          }
-        }
-        break;  private getMonsterHealth(settings: DifficultySettings): number {
-    return {
-      'goblin': 30 + settings.monsterDamage * 2,
-      'troll': 80 + settings.monsterDamage * 3,
-      'dragon': 150 + settings.monsterDamage * 4
-    }[type];
-  }
-  removePlayer(gameId: string, playerId: string): void {
-    const game = this.games.get(gameId);
-    if (!game) return;
-
-    // Remove player
-    game.players = game.players.filter(p => p.id !== playerId);
-
-    // If game is empty, start timeout
-    if (game.players.length === 0) {
-      const timeout = setTimeout(() => {
-        this.games.delete(gameId);
-        this.gameTimeouts.delete(gameId);
-        console.log(`Game ${gameId} destroyed after timeout`);
-      }, this.GAME_TIMEOUT);
-      
-      this.gameTimeouts.set(gameId, timeout);
-    }
-
-    // If player had key and game was ongoing, end game
-    const player = game.players.find(p => p.id === playerId);
-    if (player?.inventory.some(item => item.type === 'key') && game.status === 'ongoing') {
-      game.status = 'finished';
-      game.winner = {
-        playerId: player.id,
-        playerName: player.name,
-        exitedWithKey: true
-      };
-    }
-  }
-
-  private checkWinCondition(game: Game, player: Player): boolean {
-    const hasKey = player.inventory.some(item => item.type === 'key');
-    const atExit = 
-      player.position.x === game.exitPosition.x &&
-      player.position.y === game.exitPosition.y &&
-      player.position.level === game.exitPosition.level;
-
-    return hasKey && atExit;
-  }
-  private generateMonsters(width: number, height: number, levels: number, settings: DifficultySettings): Monster[] {
-    const monsters: Monster[] = [];
-    if (settings.monsterCount === 0) return monsters;
-
-    for (let i = 0; i < monsterCount; i++) {
-      const level = Math.floor(Math.random() * levels);
-      monsters.push({
-        id: `monster-${i}`,
-        type: this.getRandomMonsterType(settings),
-        position: {
-          x: Math.floor(Math.random() * width),
-          y: Math.floor(Math.random() * height),
-          level
-        },
-        health: this.getMonsterHealth(settings),
-        damage: settings.monsterDamage,
-        visibility: settings.monsterVisibility,
-        moveInterval: settings.monsterMoveInterval
-      });
-    }
-
-    return monsters;
-  }
-
-  private getRandomMonsterType(settings: DifficultySettings): 'goblin' | 'troll' | 'dragon' {
-    if (settings.allowDragons && Math.random() < 0.2) return 'dragon';
-    if (settings.allowTrolls && Math.random() < 0.4) return 'troll';
-    return 'goblin';
-  }
 import { Game, Position, Player, Item, Monster } from '../types';
 import { MonsterAI } from './MonsterAI';
 import { CombatSystem } from './CombatSystem';
 import { ItemSystem } from './ItemSystem';
 import { VisibilitySystem } from './VisibilitySystem';
 import { MapSystem } from './MapSystem';
-import { MazeGenerator } from './MazeGenerator';export class GameEngine {
-  private games: Map<string, Game> = new Map();
+import { MazeGenerator } from './MazeGenerator';
+
+export class GameEngine {
+  public games: Map<string, Game> = new Map();
   private gameTimeouts: Map<string, NodeJS.Timeout> = new Map();
-  private monsterAI: MonsterAI;
-  private combatSystem: CombatSystem;
-  private itemSystem: ItemSystem;
-  private visibilitySystem: VisibilitySystem;
-  private mapSystem: MapSystem;
+  public monsterAI: MonsterAI;
+  public combatSystem: CombatSystem;
+  public itemSystem: ItemSystem;
+  public visibilitySystem: VisibilitySystem;
+  public mapSystem: MapSystem;
 
   private readonly GAME_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
 
@@ -121,51 +25,37 @@ import { MazeGenerator } from './MazeGenerator';export class GameEngine {
     this.mapSystem = new MapSystem();
   }
 
-  addPlayer(gameId: string, player: Player): void {
-    // Clear any existing timeout when a player joins
-    if (this.gameTimeouts.has(gameId)) {
-      clearTimeout(this.gameTimeouts.get(gameId));
-      this.gameTimeouts.delete(gameId);
-    }
-    const game = this.games.get(gameId);
-    if (!game) throw new Error('Game not found');
+  createGame(gameId: string, width: number, height: number, levels: number, difficulty: number = 1): Game {
+    console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+    console.assert(width > 0 && height > 0 && levels > 0, 'dimensions must be positive numbers');
+    console.assert(difficulty >= 1 && difficulty <= 10, 'difficulty must be between 1 and 10');
+    console.assert(!this.games.has(gameId), 'game with this ID already exists');
 
-    // Place player at random position on level 0
-    player.position = this.getRandomPosition(game);
-    
-    // Initialize player's map
-    this.mapSystem.initializePlayerMap(player, player.position);
-    
-    game.players.push(player);
+    const settings = this.getDifficultySettings(difficulty);
+    const mazeGenerator = new MazeGenerator(width, height, levels);
+    const maze = mazeGenerator.generate();
 
-    if (game.status === 'waiting' && game.players.length > 0) {
-      game.status = 'ongoing';
-    }
-  }
+    // Generate exit position (random position on the highest level)
+    const exitPosition: Position = {
+      x: Math.floor(Math.random() * width),
+      y: Math.floor(Math.random() * height),
+      level: levels - 1
+    };
 
-  getPlayerVisibleState(gameId: string, playerId: string): Partial<Game> {
-    const game = this.games.get(gameId);
-    if (!game) throw new Error('Game not found');
+    const game: Game = {
+      id: gameId,
+      players: [],
+      status: 'waiting',
+      maze,
+      createdAt: new Date(),
+      monsters: this.generateMonsters(width, height, levels, settings),
+      difficulty,
+      exitPosition,
+      difficultySettings: settings
+    };
 
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) throw new Error('Player not found');
-
-    const visibility = this.visibilitySystem.calculateVisibility(game, player);
-    
-    // Update player's map with newly visible areas
-    this.mapSystem.updatePlayerMap(game, player, visibility);
-    
-    return this.visibilitySystem.getVisibleState(game, player);
-  }
-
-  getPlayerVisibleState(gameId: string, playerId: string): Partial<Game> {
-    const game = this.games.get(gameId);
-    if (!game) throw new Error('Game not found');
-
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) throw new Error('Player not found');
-
-    return this.visibilitySystem.getVisibleState(game, player);
+    this.games.set(gameId, game);
+    return game;
   }
 
   private getDifficultySettings(difficulty: number) {
@@ -196,45 +86,70 @@ import { MazeGenerator } from './MazeGenerator';export class GameEngine {
     };
   }
 
-  createGame(gameId: string, width: number, height: number, levels: number, difficulty: number): Game {
-    const settings = this.getDifficultySettings(difficulty);
-    const mazeGenerator = new MazeGenerator(width, height, levels);
-    const maze = mazeGenerator.generate();
+  private generateMonsters(width: number, height: number, levels: number, settings: DifficultySettings): Monster[] {
+    const monsters: Monster[] = [];
+    const monsterCount = settings.monsterCount;
+    if (monsterCount === 0) return monsters;
 
-    // Generate exit position (random position on the highest level)
-    const exitPosition: Position = {
-      x: Math.floor(Math.random() * width),
-      y: Math.floor(Math.random() * height),
-      level: levels - 1
-    };
+    for (let i = 0; i < monsterCount; i++) {
+      const level = Math.floor(Math.random() * levels);
+      monsters.push({
+        id: `monster-${i}`,
+        type: this.getRandomMonsterType(settings),
+        position: {
+          x: Math.floor(Math.random() * width),
+          y: Math.floor(Math.random() * height),
+          level
+        },
+        health: this.getMonsterHealth(settings),
+        damage: settings.monsterDamage,
+        visibility: settings.monsterVisibility,
+        moveInterval: settings.monsterMoveInterval
+      });
+    }
 
-    const game: Game = {
-      ...this.initializeGame(gameId, width, height, levels),
-      difficulty,
-      difficultySettings: settings,
-      id: gameId,
-      players: [],
-      status: 'waiting',
-      maze,
-      createdAt: new Date(),
-      monsters: this.generateMonsters(width, height, levels, difficulty),
-      difficulty,
-      exitPosition
-    };
-
-    // Generate initial items
-    this.itemSystem.generateInitialItems(game);
-    
-    this.games.set(gameId, game);
-    return game;
+    return monsters;
   }
 
-  addPlayer(gameId: string, player: Player): void {
+  private getRandomMonsterType(settings: DifficultySettings): 'goblin' | 'troll' | 'dragon' {
+    if (settings.allowDragons && Math.random() < 0.2) return 'dragon';
+    if (settings.allowTrolls && Math.random() < 0.4) return 'troll';
+    return 'goblin';
+  }
+
+  public getMonsterHealth(type: 'goblin' | 'troll' | 'dragon', settings: DifficultySettings): number {
+    console.assert(settings && typeof settings.monsterDamage === 'number', 'settings must include monsterDamage');
+    console.assert(['goblin', 'troll', 'dragon'].includes(type), 'invalid monster type');
+
+    switch (type) {
+      case 'goblin':
+        return 30 + settings.monsterDamage * 2;
+      case 'troll':
+        return 80 + settings.monsterDamage * 3;
+      case 'dragon':
+        return 150 + settings.monsterDamage * 4;
+    }
+  }
+
+  public addPlayer(gameId: string, player: Player): void {
+    console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+    console.assert(player && player.id && player.name, 'player must have id and name');
+    console.assert(this.games.has(gameId), 'game must exist');
+    
+    // Clear any existing timeout when a player joins
+    if (this.gameTimeouts.has(gameId)) {
+      clearTimeout(this.gameTimeouts.get(gameId));
+      this.gameTimeouts.delete(gameId);
+    }
     const game = this.games.get(gameId);
     if (!game) throw new Error('Game not found');
 
     // Place player at random position on level 0
     player.position = this.getRandomPosition(game);
+    
+    // Initialize player's map
+    this.mapSystem.initializePlayerMap(player, player.position);
+    
     game.players.push(player);
 
     if (game.status === 'waiting' && game.players.length > 0) {
@@ -242,16 +157,16 @@ import { MazeGenerator } from './MazeGenerator';export class GameEngine {
     }
   }
 
-  movePlayer(gameId: string, playerId: string, direction: 'north' | 'south' | 'east' | 'west' | 'up' | 'down'): {
+  public movePlayer(gameId: string, playerId: string, direction: 'north' | 'south' | 'east' | 'west' | 'up' | 'down'): {
+    console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+    console.assert(playerId && typeof playerId === 'string', 'playerId must be a non-empty string');
+    console.assert(direction, 'direction must be specified');
+    console.assert(this.games.has(gameId), 'game must exist');
     success: boolean;
     combatResults?: CombatResult[];
     gameWon?: boolean;
     secretDoorFound?: boolean;
-    mapDropped?: boolean; 
-    success: boolean;
-    combatResults?: CombatResult[];
-    gameWon?: boolean;
-    secretDoorFound?: boolean;
+    mapDropped?: boolean;
   } {
     const game = this.games.get(gameId);
     if (!game) throw new Error('Game not found');
@@ -296,62 +211,57 @@ import { MazeGenerator } from './MazeGenerator';export class GameEngine {
     return { success: false };
   }
 
-  private getRandomPosition(game: Game): Position {
-    const level = 0; // Start on first level
-    const x = Math.floor(Math.random() * game.maze.width);
-    const y = Math.floor(Math.random() * game.maze.height);
-    return { x, y, level };
+  public removePlayer(gameId: string, playerId: string): void {
+    console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+    console.assert(playerId && typeof playerId === 'string', 'playerId must be a non-empty string');
+    console.assert(this.games.has(gameId), 'game must exist');
+
+    const game = this.games.get(gameId);
+    if (!game) return;
+
+    // Remove player
+    game.players = game.players.filter(p => p.id !== playerId);
+
+    // If game is empty, start timeout
+    if (game.players.length === 0) {
+      const timeout = setTimeout(() => {
+        this.games.delete(gameId);
+        this.gameTimeouts.delete(gameId);
+        console.log(`Game ${gameId} destroyed after timeout`);
+      }, this.GAME_TIMEOUT);
+      
+      this.gameTimeouts.set(gameId, timeout);
+    }
+
+    // If player had key and game was ongoing, end game
+    const player = game.players.find(p => p.id === playerId);
+    if (player?.inventory.some(item => item.type === 'key') && game.status === 'ongoing') {
+      game.status = 'finished';
+      game.winner = {
+        playerId: player.id,
+        playerName: player.name,
+        exitedWithKey: true
+      };
+    }
   }
 
-  private calculateNewPosition(game: Game, current: Position, direction: string): Position {
-    const { width, height, levels } = game.maze;
-    const { width, height } = game.maze;
-    let { x, y, level } = current;
+  public getPlayerVisibleState(gameId: string, playerId: string): Partial<Game> {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('Game not found');
 
-    switch (direction) {
-      case 'north':
-        y = y === 0 ? height - 1 : y - 1;
-        break;
-      case 'south':
-        y = y === height - 1 ? 0 : y + 1;
-        break;
-      case 'east':
-        x = x === width - 1 ? 0 : x + 1;
-        break;
-      case 'west':
-        x = x === 0 ? width - 1 : x - 1;
-        break;
-    }
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) throw new Error('Player not found');
 
-    return { x, y, level };
+    return this.visibilitySystem.getVisibleState(game, player);
   }
 
-  private canMoveTo(game: Game, from: Position, to: Position): { allowed: boolean; isSecretDoor: boolean } {
-    const fromCell = game.maze.grid[from.level][from.y][from.x];
-    
-    // Determine direction of movement
-    let direction: 'north' | 'south' | 'east' | 'west';
-    if (to.x > from.x || (to.x === 0 && from.x === game.maze.width - 1)) {
-      direction = 'east';
-    } else if (to.x < from.x || (to.x === game.maze.width - 1 && from.x === 0)) {
-      direction = 'west';
-    } else if (to.y > from.y || (to.y === 0 && from.y === game.maze.height - 1)) {
-      direction = 'south';
-    } else {
-      direction = 'north';
-    }
+  public checkWinCondition(game: Game, player: Player): boolean {
+    const hasKey = player.inventory.some(item => item.type === 'key');
+    const atExit = 
+      player.position.x === game.exitPosition.x &&
+      player.position.y === game.exitPosition.y &&
+      player.position.level === game.exitPosition.level;
 
-    // Check for wall and secret door
-    const hasWall = fromCell.walls[direction];
-    const hasSecretDoor = fromCell.secretDoors?.[direction];
-
-    // Allow movement if:
-    // 1. No wall exists, or
-    // 2. There's a secret door (50% chance of discovery)
-    if (!hasWall || (hasSecretDoor && Math.random() < 0.5)) {
-      return { allowed: true, isSecretDoor: !!hasSecretDoor };
-    }
-
-    return { allowed: false, isSecretDoor: false };
+    return hasKey && atExit;
   }
 }
