@@ -4,6 +4,9 @@ import { gameSocket } from '../services/socket';
 import { showNotification } from '../services/notifications';
 
 export function useGameSocket(gameId: string, playerId: string) {
+  console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+  console.assert(playerId && typeof playerId === 'string', 'playerId must be a non-empty string');
+
   const { dispatch } = useGame();
 
   useEffect(() => {

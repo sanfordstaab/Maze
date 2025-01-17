@@ -25,6 +25,9 @@ const initialState: GameState = {
 };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
+  console.assert(state !== undefined, 'state must be defined');
+  console.assert(action && action.type, 'action must have a type');
+
   switch (action.type) {
     case 'SET_GAME':
       return {
@@ -67,6 +70,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
 export function useGame() {
   const context = useContext(GameContext);
+  console.assert(context !== undefined, 'useGame must be used within a GameProvider');
   if (context === undefined) {
     throw new Error('useGame must be used within a GameProvider');
   }

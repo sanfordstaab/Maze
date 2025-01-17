@@ -3,9 +3,13 @@ import { useGame } from '../context/GameContext';
 import { socket } from '../services/socket';
 
 export function useKeyboardControls(gameId: string, playerId: string) {
+  console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+  console.assert(playerId && typeof playerId === 'string', 'playerId must be a non-empty string');
+
   const { state } = useGame();
 
   const handleMovement = useCallback((direction: 'north' | 'south' | 'east' | 'west' | 'up' | 'down') => {
+    console.assert(direction, 'direction must be specified');
     if (!state.currentPlayer) return;
     
     socket.emit('playerMove', {

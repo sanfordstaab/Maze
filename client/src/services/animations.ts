@@ -9,6 +9,10 @@ interface AnimationEffect {
 const activeAnimations = new Set<AnimationEffect>();
 
 export function addAnimation(effect: AnimationEffect) {
+  console.assert(effect && typeof effect.x === 'number' && typeof effect.y === 'number', 'effect must have valid coordinates');
+  console.assert(effect.type, 'effect must have a type');
+  console.assert(effect.duration === undefined || effect.duration > 0, 'duration must be positive if specified');
+
   activeAnimations.add(effect);
   setTimeout(() => {
     activeAnimations.delete(effect);
@@ -20,6 +24,9 @@ export function getActiveAnimations(): AnimationEffect[] {
 }
 
 export function createDamageAnimation(x: number, y: number, damage: number) {
+  console.assert(typeof x === 'number' && typeof y === 'number', 'coordinates must be numbers');
+  console.assert(damage >= 0, 'damage must be non-negative');
+
   addAnimation({
     x,
     y,
@@ -59,6 +66,9 @@ export function createMapAnimation(x: number, y: number) {
 }
 
 export function createWrapAnimation(fromX: number, fromY: number, toX: number, toY: number) {
+  console.assert(typeof fromX === 'number' && typeof fromY === 'number', 'from coordinates must be numbers');
+  console.assert(typeof toX === 'number' && typeof toY === 'number', 'to coordinates must be numbers');
+
   addAnimation({
     x: fromX,
     y: fromY,

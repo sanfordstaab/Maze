@@ -39,6 +39,11 @@ export function GameSetup({ onGameStart }: GameSetupProps) {
   };
 
   const createGame = async () => {
+    console.assert(mazeOptions.width >= 10 && mazeOptions.width <= 100, 'Width must be between 10 and 100');
+    console.assert(mazeOptions.height >= 10 && mazeOptions.height <= 100, 'Height must be between 10 and 100');
+    console.assert(mazeOptions.levels >= 1 && mazeOptions.levels <= 10, 'Levels must be between 1 and 10');
+    console.assert(mazeOptions.difficulty >= 1 && mazeOptions.difficulty <= 10, 'Difficulty must be between 1 and 10');
+
     try {
       const response = await fetch('http://localhost:3001/games', {
         method: 'POST',
@@ -55,6 +60,9 @@ export function GameSetup({ onGameStart }: GameSetupProps) {
   };
 
   const joinGame = async (gameId: string) => {
+    console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+    console.assert(playerName.trim(), 'Player name cannot be empty');
+
     if (!playerName.trim()) {
       alert('Please enter your name');
       return;

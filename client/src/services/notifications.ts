@@ -1,6 +1,9 @@
 type NotificationType = 'info' | 'success' | 'warning' | 'error';
 
 export function showNotification(message: string, type: NotificationType = 'info') {
+  console.assert(message && typeof message === 'string', 'message must be a non-empty string');
+  console.assert(['info', 'success', 'warning', 'error'].includes(type), 'invalid notification type');
+
   // Create notification element
   const notification = document.createElement('div');
   notification.className = `game-notification ${type}`;
