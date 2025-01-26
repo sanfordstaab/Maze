@@ -1,7 +1,9 @@
-import { Game, Player, Monster, CombatResult, Item } from '../types';
+import { Game, Player, Monster, CombatResult, Item, Position } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class CombatSystem {
+  constructor(private mapSystem: any) {}
+
   resolveCombat(game: Game, position: Position): CombatResult[] {
     console.assert(game && game.players, 'game must exist and have players array');
     console.assert(position && typeof position.x === 'number', 'position must be valid');
@@ -57,7 +59,7 @@ export class CombatSystem {
     if (game.difficulty >= 5 && players.length > 1) {
       for (let i = 0; i < players.length; i++) {
         for (let j = i + 1; j < players.length; j++) {
-          const result = this.resolvePlayerCombat(players[i], players[j]);
+          const result = this.resolvePlayerCombat(game, players[i], players[j]);
           if (result) results.push(result);
         }
       }
@@ -75,6 +77,7 @@ export class CombatSystem {
     if (!game.difficultySettings.playerVsPlayerEnabled) {
       return null;
     }
+
     // 30% chance of item or map theft during combat
     if (Math.random() < 0.3) {
       if (Math.random() < 0.5) {
@@ -90,7 +93,7 @@ export class CombatSystem {
         }
       } else {
         // Try to steal map knowledge
-        this.gameEngine.mapSystem.transferMap(player2, player1);
+        this.mapSystem.transferMap(player2, player1);
         return {
           attacker: player1.id,
           defender: player2.id,

@@ -68,19 +68,7 @@ export interface CombatResult {
   damage: number;
   isMonster?: boolean;
   itemStolen?: Item;
-}
-
-export interface DifficultySettings {
-  monsterCount: number;
-  monsterMoveInterval: number;
-  monsterVisibility: number;
-  monsterDamage: number;
-  playerVisibility: number;
-  healingPotionCount: number;
-  healingPotionStrength: number;
-  playerVsPlayerEnabled: boolean;
-  secretDoorChance: number;
-  mapDropChance: number;
+  mapStolen?: boolean;
 }
 
 export interface DifficultySettings {

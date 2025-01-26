@@ -1,19 +1,3 @@
-        // Broadcast combat results if any
-        if (result.combatResults && result.combatResults.length > 0) {
-          io.to(`game:${gameId}`).emit('combatResults', {
-            results: result.combatResults
-          });
-
-          // Check for player death
-          if (player.health <= 0) {
-            io.to(`game:${gameId}`).emit('playerDied', {
-              playerId: player.id,
-              playerName: player.name
-            });
-            // Remove player from game
-            game.players = game.players.filter(p => p.id !== playerId);
-          }
-        }
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -45,7 +29,7 @@ app.post('/games', (req, res) => {
 });
 
 app.get('/games', (req, res) => {
-  const activeGames = Object.values(games)
+  const activeGames = Array.from(gameEngine.games.values())
     .filter(game => game.status !== 'finished')
     .map(game => ({
       id: game.id,
@@ -70,10 +54,14 @@ io.on('connection', (socket) => {
     const player = {
       id: playerId,
       name: playerName,
-      position: { x: 0, y: 0, level: 0 }, // Will be randomly placed when game starts
+      position: { x: 0, y: 0, level: 0 },
       health: 100,
       inventory: [],
-      socketId: socket.id
+      socketId: socket.id,
+      map: {
+        cells: [],
+        startPosition: { x: 0, y: 0, level: 0 }
+      }
     };
 
     gameEngine.addPlayer(gameId, player);
@@ -85,23 +73,25 @@ io.on('connection', (socket) => {
 
   socket.on('playerMove', ({ gameId, playerId, direction }) => {
     try {
-      const result = gameEngine.movePlayer(gameId, playerId, direction);        if (result.success) {
-          if (result.mapDropped) {
-            socket.emit('mapDropped', {
-              playerId: player.id,
-              position: player.position
-            });
-          }
-          if (result.secretDoorFound) {
-            socket.emit('secretDoorFound', {
-              position: player.position
-            });
-          }
-        const game = gameEngine.games.get(gameId);
-        if (!game) return;
-        
-        const player = game.players.find(p => p.id === playerId);
-        if (!player) return;
+      const game = gameEngine.games.get(gameId);
+      if (!game) return;
+      
+      const player = game.players.find(p => p.id === playerId);
+      if (!player) return;
+
+      const result = gameEngine.movePlayer(gameId, playerId, direction);
+      if (result.success) {
+        if (result.mapDropped) {
+          socket.emit('mapDropped', {
+            playerId: player.id,
+            position: player.position
+          });
+        }
+        if (result.secretDoorFound) {
+          socket.emit('secretDoorFound', {
+            position: player.position
+          });
+        }
 
         // Check for win condition
         if (result.gameWon) {
@@ -138,97 +128,6 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error handling player move:', error);
       socket.emit('error', 'Failed to move player');
-    }
-  });
-
-  socket.on('chatMessage', (data) => {
-    const { gameId, playerId, playerName, message, targetPlayerId } = data;
-    const timestamp = new Date();
-
-    if (targetPlayerId) {
-      // Private message
-      const targetPlayer = gameEngine.games.get(gameId)?.players.find(p => p.id === targetPlayerId);
-      if (targetPlayer) {
-        // Send to target and sender only
-        io.to(targetPlayer.socketId).emit('chatMessage', {
-          playerId,
-          playerName,
-          message,
-          timestamp,
-          isPrivate: true
-        });
-        socket.emit('chatMessage', {
-          playerId,
-          playerName,
-          message,
-          timestamp,
-          isPrivate: true,
-          targetName: targetPlayer.name
-        });
-      }
-    } else {
-      // Broadcast to all players in game
-      io.to(`game:${gameId}`).emit('chatMessage', {
-        playerId,
-        playerName,
-        message,
-        timestamp
-      });
-    }
-  });
-
-  socket.on('pickupItem', ({ gameId, playerId }) => {
-    try {
-      const game = gameEngine.games.get(gameId);
-      if (!game) return;
-
-      const item = gameEngine.itemSystem.pickupItem(game, playerId);
-      if (item) {
-        io.to(`game:${gameId}`).emit('itemPickedUp', {
-          playerId,
-          item
-        });
-      }
-    } catch (error) {
-      console.error('Error picking up item:', error);
-      socket.emit('error', 'Failed to pick up item');
-    }
-  });
-
-  socket.on('dropItem', ({ gameId, playerId, itemId }) => {
-    try {
-      const game = gameEngine.games.get(gameId);
-      if (!game) return;
-
-      const item = gameEngine.itemSystem.dropItem(game, playerId, itemId);
-      if (item) {
-        io.to(`game:${gameId}`).emit('itemDropped', {
-          playerId,
-          item
-        });
-      }
-    } catch (error) {
-      console.error('Error dropping item:', error);
-      socket.emit('error', 'Failed to drop item');
-    }
-  });
-
-  socket.on('useItem', ({ gameId, playerId, itemId }) => {
-    try {
-      const game = gameEngine.games.get(gameId);
-      if (!game) return;
-
-      const result = gameEngine.itemSystem.useItem(game, playerId, itemId);
-      if (result.success) {
-        io.to(`game:${gameId}`).emit('itemUsed', {
-          playerId,
-          itemId,
-          effect: result.effect
-        });
-      }
-    } catch (error) {
-      console.error('Error using item:', error);
-      socket.emit('error', 'Failed to use item');
     }
   });
 

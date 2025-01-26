@@ -4,18 +4,15 @@ export class MonsterAI {
   private moveMonsterIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   startMonsterMovement(game: Game, monster: Monster) {
-    const monster = game.monsters.find(m => m.id === monsterId);
-    if (!monster) return;
-
     // Clear any existing interval
-    this.stopMonsterMovement(monsterId);
+    this.stopMonsterMovement(monster.id);
 
     // Start new movement interval based on difficulty
     const interval = setInterval(() => {
       this.moveMonster(game, monster);
     }, game.difficultySettings.monsterMoveInterval);
 
-    this.moveMonsterIntervals.set(monsterId, interval);
+    this.moveMonsterIntervals.set(monster.id, interval);
   }
 
   stopMonsterMovement(monsterId: string) {
@@ -115,19 +112,6 @@ export class MonsterAI {
     }
 
     return nearest;
-  }
-
-  private calculateNextPosition(current: Position, target: Position): Position {
-    // Simple A* or pathfinding could be implemented here
-    // For now, just move in the direction of the player
-    const dx = Math.sign(target.x - current.x);
-    const dy = Math.sign(target.y - current.y);
-
-    return {
-      x: current.x + dx,
-      y: current.y + dy,
-      level: current.level
-    };
   }
 
   private wrap(value: number, max: number): number {

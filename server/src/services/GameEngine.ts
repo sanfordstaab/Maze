@@ -18,11 +18,11 @@ export class GameEngine {
   private readonly GAME_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
 
   constructor() {
+    this.mapSystem = new MapSystem();
     this.monsterAI = new MonsterAI();
-    this.combatSystem = new CombatSystem();
+    this.combatSystem = new CombatSystem(this.mapSystem);
     this.itemSystem = new ItemSystem();
     this.visibilitySystem = new VisibilitySystem();
-    this.mapSystem = new MapSystem();
   }
 
   createGame(gameId: string, width: number, height: number, levels: number, difficulty: number = 1): Game {
@@ -86,22 +86,23 @@ export class GameEngine {
     };
   }
 
-  private generateMonsters(width: number, height: number, levels: number, settings: DifficultySettings): Monster[] {
+  private generateMonsters(width: number, height: number, levels: number, settings: Game['difficultySettings']): Monster[] {
     const monsters: Monster[] = [];
     const monsterCount = settings.monsterCount;
     if (monsterCount === 0) return monsters;
 
     for (let i = 0; i < monsterCount; i++) {
       const level = Math.floor(Math.random() * levels);
+      const monsterType = this.getRandomMonsterType(settings);
       monsters.push({
         id: `monster-${i}`,
-        type: this.getRandomMonsterType(settings),
+        type: monsterType,
         position: {
           x: Math.floor(Math.random() * width),
           y: Math.floor(Math.random() * height),
           level
         },
-        health: this.getMonsterHealth(settings),
+        health: this.getMonsterHealth(monsterType, settings),
         damage: settings.monsterDamage,
         visibility: settings.monsterVisibility,
         moveInterval: settings.monsterMoveInterval
@@ -111,23 +112,81 @@ export class GameEngine {
     return monsters;
   }
 
-  private getRandomMonsterType(settings: DifficultySettings): 'goblin' | 'troll' | 'dragon' {
+  private getRandomPosition(game: Game): Position {
+    return {
+      x: Math.floor(Math.random() * game.maze.width),
+      y: Math.floor(Math.random() * game.maze.height),
+      level: 0
+    };
+  }
+
+  private calculateNewPosition(game: Game, currentPosition: Position, direction: 'north' | 'south' | 'east' | 'west' | 'up' | 'down'): Position {
+    const { x, y, level } = currentPosition;
+    const { width, height, levels } = game.maze;
+
+    switch (direction) {
+      case 'north':
+        return { x, y: (y - 1 + height) % height, level };
+      case 'south':
+        return { x, y: (y + 1) % height, level };
+      case 'east':
+        return { x: (x + 1) % width, y, level };
+      case 'west':
+        return { x: (x - 1 + width) % width, y, level };
+      case 'up':
+        return { x, y, level: (level + 1) % levels };
+      case 'down':
+        return { x, y, level: (level - 1 + levels) % levels };
+    }
+  }
+
+  private canMoveTo(game: Game, from: Position, to: Position): { allowed: boolean; isSecretDoor: boolean } {
+    const cell = game.maze.grid[from.level][from.y][from.x];
+    const direction = this.getDirection(from, to);
+    
+    if (!direction) return { allowed: false, isSecretDoor: false };
+
+    // Check if there's a wall in that direction
+    if (cell.walls[direction]) {
+      // Check for secret door
+      if (cell.secretDoors?.[direction]) {
+        return { allowed: true, isSecretDoor: true };
+      }
+      return { allowed: false, isSecretDoor: false };
+    }
+
+    return { allowed: true, isSecretDoor: false };
+  }
+
+  private getDirection(from: Position, to: Position): 'north' | 'south' | 'east' | 'west' | null {
+    if (from.x !== to.x) {
+      return from.x < to.x ? 'east' : 'west';
+    }
+    if (from.y !== to.y) {
+      return from.y < to.y ? 'south' : 'north';
+    }
+    return null;
+  }
+
+  private getRandomMonsterType(settings: Game['difficultySettings']): 'goblin' | 'troll' | 'dragon' {
     if (settings.allowDragons && Math.random() < 0.2) return 'dragon';
     if (settings.allowTrolls && Math.random() < 0.4) return 'troll';
     return 'goblin';
   }
 
-  public getMonsterHealth(type: 'goblin' | 'troll' | 'dragon', settings: DifficultySettings): number {
+  public getMonsterHealth(monsterType: 'goblin' | 'troll' | 'dragon', settings: Game['difficultySettings']): number {
     console.assert(settings && typeof settings.monsterDamage === 'number', 'settings must include monsterDamage');
-    console.assert(['goblin', 'troll', 'dragon'].includes(type), 'invalid monster type');
+    console.assert(['goblin', 'troll', 'dragon'].includes(monsterType), 'invalid monster type');
 
-    switch (type) {
+    switch (monsterType) {
       case 'goblin':
         return 30 + settings.monsterDamage * 2;
       case 'troll':
         return 80 + settings.monsterDamage * 3;
       case 'dragon':
         return 150 + settings.monsterDamage * 4;
+      default:
+        return 30 + settings.monsterDamage * 2; // Default to goblin health
     }
   }
 
@@ -158,16 +217,23 @@ export class GameEngine {
   }
 
   public movePlayer(gameId: string, playerId: string, direction: 'north' | 'south' | 'east' | 'west' | 'up' | 'down'): {
-    console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
-    console.assert(playerId && typeof playerId === 'string', 'playerId must be a non-empty string');
-    console.assert(direction, 'direction must be specified');
-    console.assert(this.games.has(gameId), 'game must exist');
     success: boolean;
-    combatResults?: CombatResult[];
+    combatResults?: Array<{
+      attacker: string;
+      defender: string;
+      damage: number;
+      isMonster?: boolean;
+      itemStolen?: Item;
+      mapStolen?: boolean;
+    }>;
     gameWon?: boolean;
     secretDoorFound?: boolean;
     mapDropped?: boolean;
   } {
+    console.assert(gameId && typeof gameId === 'string', 'gameId must be a non-empty string');
+    console.assert(playerId && typeof playerId === 'string', 'playerId must be a non-empty string');
+    console.assert(direction, 'direction must be specified');
+    console.assert(this.games.has(gameId), 'game must exist');
     const game = this.games.get(gameId);
     if (!game) throw new Error('Game not found');
 
