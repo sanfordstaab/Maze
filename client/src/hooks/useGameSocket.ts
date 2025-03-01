@@ -16,20 +16,24 @@ export function useGameSocket(gameId: string, playerId: string) {
     });
 
     gameSocket.on('secretDoorFound', ({ position, direction }) => {
-      createSecretDoorAnimation(position.x, position.y, direction);
+      if (typeof createSecretDoorAnimation === 'function') {
+        createSecretDoorAnimation(position.x, position.y, direction);
+      }
       showNotification('You found a secret door!', 'success');
     });
 
     // Handle wrapping movement
-    gameSocket.on('playerMoved', ({ playerId, position, wrapped }) => {
-      if (wrapped && playerId === playerId) {
+    gameSocket.on('playerMoved', ({ playerId: movedPlayerId, position, wrapped }) => {
+      if (wrapped && movedPlayerId === playerId) {
         const { from, to } = wrapped;
-        createWrapAnimation(from.x, from.y, to.x, to.y);
+        if (typeof createWrapAnimation === 'function') {
+          createWrapAnimation(from.x, from.y, to.x, to.y);
+        }
       }
     });
 
-    gameSocket.on('gameWon', ({ playerId, playerName }) => {
-      const isCurrentPlayer = playerId === playerId;
+    gameSocket.on('gameWon', ({ playerId: winnerId, playerName }) => {
+      const isCurrentPlayer = winnerId === playerId;
       const message = isCurrentPlayer ? 
         'Congratulations! You won the game!' : 
         `${playerName} has won the game!`;
@@ -50,16 +54,16 @@ export function useGameSocket(gameId: string, playerId: string) {
       showNotification(`${player.name} joined the game`);
     });
 
-    gameSocket.on('playerLeft', ({ playerId }) => {
-      dispatch({ type: 'REMOVE_PLAYER', payload: playerId });
+    gameSocket.on('playerLeft', ({ playerId: leftPlayerId }) => {
+      dispatch({ type: 'REMOVE_PLAYER', payload: leftPlayerId });
     });
 
-    gameSocket.on('playerMoved', ({ playerId, position }) => {
-      dispatch({ type: 'UPDATE_PLAYER_POSITION', payload: { playerId, position } });
+    gameSocket.on('playerMoved', ({ playerId: movedPlayerId, position }) => {
+      dispatch({ type: 'UPDATE_PLAYER_POSITION', payload: { playerId: movedPlayerId, position } });
     });
 
-    gameSocket.on('playerDied', ({ playerId, playerName }) => {
-      dispatch({ type: 'REMOVE_PLAYER', payload: playerId });
+    gameSocket.on('playerDied', ({ playerId: deadPlayerId, playerName }) => {
+      dispatch({ type: 'REMOVE_PLAYER', payload: deadPlayerId });
       showNotification(`${playerName} has died!`, 'error');
     });
 
@@ -78,23 +82,23 @@ export function useGameSocket(gameId: string, playerId: string) {
     });
 
     // Item events
-    gameSocket.on('itemPickedUp', ({ playerId, item }) => {
-      dispatch({ type: 'ADD_ITEM_TO_PLAYER', payload: { playerId, item } });
-      if (playerId === playerId) {
+    gameSocket.on('itemPickedUp', ({ playerId: itemPlayerId, item }) => {
+      dispatch({ type: 'ADD_ITEM_TO_PLAYER', payload: { playerId: itemPlayerId, item } });
+      if (itemPlayerId === playerId) {
         showNotification(`Picked up ${item.type}`);
       }
     });
 
-    gameSocket.on('itemDropped', ({ playerId, item }) => {
-      dispatch({ type: 'REMOVE_ITEM_FROM_PLAYER', payload: { playerId, itemId: item.id } });
-      if (playerId === playerId) {
+    gameSocket.on('itemDropped', ({ playerId: droppedPlayerId, item }) => {
+      dispatch({ type: 'REMOVE_ITEM_FROM_PLAYER', payload: { playerId: droppedPlayerId, itemId: item.id } });
+      if (droppedPlayerId === playerId) {
         showNotification(`Dropped ${item.type}`);
       }
     });
 
-    gameSocket.on('itemUsed', ({ playerId, itemId, effect }) => {
-      dispatch({ type: 'REMOVE_ITEM_FROM_PLAYER', payload: { playerId, itemId } });
-      if (playerId === playerId) {
+    gameSocket.on('itemUsed', ({ playerId: itemUsedPlayerId, itemId, effect }) => {
+      dispatch({ type: 'REMOVE_ITEM_FROM_PLAYER', payload: { playerId: itemUsedPlayerId, itemId } });
+      if (itemUsedPlayerId === playerId) {
         showNotification(effect);
       }
     });
@@ -118,6 +122,8 @@ export function useGameSocket(gameId: string, playerId: string) {
       gameSocket.off('itemDropped');
       gameSocket.off('itemUsed');
       gameSocket.off('itemsAvailable');
+      gameSocket.off('secretDoorFound');
+      gameSocket.off('gameWon');
     };
   }, [dispatch, playerId]);
 }

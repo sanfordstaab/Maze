@@ -36,7 +36,7 @@ export const gameSocket = {
     socket.emit(event, data);
   },
   on: <K extends keyof GameEvents>(event: K, callback: (data: GameEvents[K]) => void) => {
-    socket.on(event, callback);
+    socket.on(event, callback as (...args: any[]) => void);
   },
   off: <K extends keyof GameEvents>(event: K) => {
     socket.off(event);
